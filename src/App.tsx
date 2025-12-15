@@ -1360,7 +1360,8 @@ export default function App() {
                 e.preventDefault();
                 const getEnvVar = (key: string): string => {
                   try {
-                    return (import.meta.env as any)[key] || '';
+                    const env = import.meta.env as any;
+                    return env[key] || '';
                   } catch {
                     return '';
                   }
