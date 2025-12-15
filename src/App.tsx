@@ -15,6 +15,7 @@ import {
   Eye,
   EyeOff
 } from 'lucide-react';
+import { supabase } from './lib/supabase';
 
 // --- TYPES ---
 
@@ -176,21 +177,96 @@ export default function App() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // initial load from localStorage
+  // Load data from Supabase or localStorage (fallback)
   useEffect(() => {
-    const loadFromStorage = () => {
+    const loadProducts = async () => {
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('products')
+            .select('*')
+            .order('id', { ascending: true });
+
+          if (error) {
+            console.error('Supabase products error:', error);
+            // Fallback to localStorage
+            loadFromLocalStorage();
+          } else if (data && data.length > 0) {
+            // Convert database format to app format
+            const formattedProducts: Product[] = data.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              category: p.category,
+              price: Number(p.price),
+              image: p.image,
+              description: p.description,
+              color: p.color as ColorType,
+            }));
+            setProducts(formattedProducts);
+          } else {
+            // No data in Supabase, use defaults
+            setProducts(DEFAULT_PRODUCTS);
+          }
+        } catch (err) {
+          console.error('Failed to load products from Supabase:', err);
+          loadFromLocalStorage();
+        }
+      } else {
+        // Supabase not configured, use localStorage
+        loadFromLocalStorage();
+      }
+    };
+
+    const loadOrders = async () => {
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('orders')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+          if (error) {
+            console.error('Supabase orders error:', error);
+            loadOrdersFromLocalStorage();
+          } else if (data) {
+            const formattedOrders: Order[] = data.map((o: any) => ({
+              id: o.id,
+              date: o.date || o.created_at,
+              customerName: o.customer_name,
+              email: o.email,
+              address: o.address,
+              total: Number(o.total),
+              note: o.note || undefined,
+              status: o.status as 'pending' | 'confirmed',
+            }));
+            setOrders(formattedOrders);
+          }
+        } catch (err) {
+          console.error('Failed to load orders from Supabase:', err);
+          loadOrdersFromLocalStorage();
+        }
+      } else {
+        loadOrdersFromLocalStorage();
+      }
+    };
+
+    const loadFromLocalStorage = () => {
       try {
         const storedProducts = window.localStorage.getItem(STORAGE_PRODUCTS_KEY);
         if (storedProducts) {
           const parsed = JSON.parse(storedProducts) as Product[];
           if (Array.isArray(parsed) && parsed.length) {
             setProducts(parsed);
+            return;
           }
         }
       } catch {
         // ignore
       }
+      setProducts(DEFAULT_PRODUCTS);
+    };
 
+    const loadOrdersFromLocalStorage = () => {
       try {
         const storedOrders = window.localStorage.getItem(STORAGE_ORDERS_KEY);
         if (storedOrders) {
@@ -205,66 +281,146 @@ export default function App() {
     };
 
     // Initial load
-    loadFromStorage();
+    loadProducts();
+    loadOrders();
 
-    // Listen for storage changes (sync across tabs/windows on same device)
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === STORAGE_PRODUCTS_KEY && e.newValue) {
-        try {
-          const parsed = JSON.parse(e.newValue) as Product[];
-          if (Array.isArray(parsed)) {
-            setProducts(parsed);
+    // Real-time subscriptions for Supabase
+    if (supabase) {
+      const productsChannel = supabase
+        .channel('products-changes')
+        .on('postgres_changes', 
+          { event: '*', schema: 'public', table: 'products' },
+          () => {
+            loadProducts();
           }
-        } catch {
-          // ignore
-        }
-      }
-      if (e.key === STORAGE_ORDERS_KEY && e.newValue) {
-        try {
-          const parsed = JSON.parse(e.newValue) as Order[];
-          if (Array.isArray(parsed)) {
-            setOrders(parsed);
+        )
+        .subscribe();
+
+      const ordersChannel = supabase
+        .channel('orders-changes')
+        .on('postgres_changes',
+          { event: '*', schema: 'public', table: 'orders' },
+          () => {
+            loadOrders();
           }
-        } catch {
-          // ignore
-        }
-      }
-    };
+        )
+        .subscribe();
 
-    window.addEventListener('storage', handleStorageChange);
-    
-    // Also listen for custom storage events (for same-tab updates)
-    const handleCustomStorage = () => {
-      loadFromStorage();
-    };
-    window.addEventListener('localStorageUpdate', handleCustomStorage);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('localStorageUpdate', handleCustomStorage);
-    };
+      return () => {
+        productsChannel.unsubscribe();
+        ordersChannel.unsubscribe();
+      };
+    }
   }, []);
 
-  // persist products
+  // Persist products to Supabase or localStorage (fallback)
   useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(products));
-      // Dispatch custom event for same-tab sync
-      window.dispatchEvent(new Event('localStorageUpdate'));
-    } catch {
-      // ignore
-    }
+    if (products.length === 0) return; // Don't save empty array on initial load
+
+    const saveProducts = async () => {
+      if (supabase) {
+        try {
+          // Get current products from Supabase
+          const { data: existingProducts } = await supabase
+            .from('products')
+            .select('id');
+
+          const existingIds = new Set(existingProducts?.map(p => p.id) || []);
+
+          // Delete products that are not in current state
+          const currentIds = new Set(products.map(p => p.id));
+          const toDelete = Array.from(existingIds).filter(id => !currentIds.has(id));
+          
+          if (toDelete.length > 0) {
+            await supabase.from('products').delete().in('id', toDelete);
+          }
+
+          // Upsert all products
+          const productsToUpsert = products.map(p => ({
+            id: p.id,
+            name: p.name,
+            category: p.category,
+            price: p.price,
+            image: p.image,
+            description: p.description,
+            color: p.color,
+          }));
+
+          const { error } = await supabase
+            .from('products')
+            .upsert(productsToUpsert, { onConflict: 'id' });
+
+          if (error) {
+            console.error('Supabase products save error:', error);
+            // Fallback to localStorage
+            saveToLocalStorage();
+          }
+        } catch (err) {
+          console.error('Failed to save products to Supabase:', err);
+          saveToLocalStorage();
+        }
+      } else {
+        saveToLocalStorage();
+      }
+    };
+
+    const saveToLocalStorage = () => {
+      try {
+        window.localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(products));
+        window.dispatchEvent(new Event('localStorageUpdate'));
+      } catch {
+        // ignore
+      }
+    };
+
+    saveProducts();
   }, [products]);
 
-  // persist orders
+  // Persist orders to Supabase or localStorage (fallback)
   useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_ORDERS_KEY, JSON.stringify(orders));
-      // Dispatch custom event for same-tab sync
-      window.dispatchEvent(new Event('localStorageUpdate'));
-    } catch {
-      // ignore
-    }
+    if (orders.length === 0) return; // Don't save empty array on initial load
+
+    const saveOrders = async () => {
+      if (supabase) {
+        try {
+          const ordersToUpsert = orders.map(o => ({
+            id: o.id,
+            customer_name: o.customerName,
+            email: o.email,
+            address: o.address,
+            total: o.total,
+            note: o.note || null,
+            status: o.status,
+            date: o.date,
+          }));
+
+          const { error } = await supabase
+            .from('orders')
+            .upsert(ordersToUpsert, { onConflict: 'id' });
+
+          if (error) {
+            console.error('Supabase orders save error:', error);
+            saveOrdersToLocalStorage();
+          }
+        } catch (err) {
+          console.error('Failed to save orders to Supabase:', err);
+          saveOrdersToLocalStorage();
+        }
+      } else {
+        saveOrdersToLocalStorage();
+      }
+    };
+
+    const saveOrdersToLocalStorage = () => {
+      try {
+        window.localStorage.setItem(STORAGE_ORDERS_KEY, JSON.stringify(orders));
+        window.dispatchEvent(new Event('localStorageUpdate'));
+      } catch {
+        // ignore
+      }
+    };
+
+    saveOrders();
   }, [orders]);
 
   // Scroll to top when view changes
@@ -295,22 +451,54 @@ export default function App() {
 
   const cartTotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
-  const handleCheckout = (e: React.FormEvent) => {
+  const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     setOrderStatus('processing');
+    
+    const newOrder: Order = {
+      id: Date.now(),
+      date: new Date().toISOString(),
+      customerName: formData.name,
+      email: formData.email,
+      address: formData.address,
+      total: cartTotal,
+      note: undefined,
+      status: 'pending',
+    };
+
+    // Save to Supabase or localStorage
+    if (supabase) {
+      try {
+        const { error } = await supabase
+          .from('orders')
+          .insert({
+            customer_name: newOrder.customerName,
+            email: newOrder.email,
+            address: newOrder.address,
+            total: newOrder.total,
+            note: newOrder.note || null,
+            status: newOrder.status,
+            date: newOrder.date,
+          });
+
+        if (error) {
+          console.error('Supabase order insert error:', error);
+          // Fallback to localStorage
+          setOrders(prev => [newOrder, ...prev]);
+        } else {
+          // Order will be loaded via real-time subscription
+          setOrders(prev => [newOrder, ...prev]);
+        }
+      } catch (err) {
+        console.error('Failed to save order to Supabase:', err);
+        setOrders(prev => [newOrder, ...prev]);
+      }
+    } else {
+      setOrders(prev => [newOrder, ...prev]);
+    }
+
     setTimeout(() => {
       setOrderStatus('success');
-      const newOrder: Order = {
-        id: Date.now(),
-        date: new Date().toISOString(),
-        customerName: formData.name,
-        email: formData.email,
-        address: formData.address,
-        total: cartTotal,
-        note: undefined,
-        status: 'pending',
-      };
-      setOrders(prev => [newOrder, ...prev]);
       setCart([]);
     }, 2000);
   };
