@@ -1043,8 +1043,8 @@ export default function App() {
               className="space-y-4"
               onSubmit={e => {
                 e.preventDefault();
-                const adminUsername = import.meta.env.VITE_ADMIN_USERNAME || 'nazenin';
-                const adminPassword = import.meta.env.VITE_ADMIN_PASSWORD || '09Nazenin022022';
+                const adminUsername = (import.meta.env as any).VITE_ADMIN_USERNAME || 'nazenin';
+                const adminPassword = (import.meta.env as any).VITE_ADMIN_PASSWORD || '09Nazenin022022';
                 if (adminUser === adminUsername && adminPass === adminPassword) {
                   setIsAdminAuthenticated(true);
                   setAdminLoginOpen(false);
