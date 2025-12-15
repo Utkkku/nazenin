@@ -612,9 +612,15 @@ export default function App() {
             {/* Background image: luxury satin rose bouquet */}
             <div className="absolute inset-0 z-0">
               <img 
-                src="/image.png"
+                src="/image.jpeg"
                 alt="Lüks Saten Gül Buketi"
-                className="w-full h-full object-cover object-center animate-[scale-in_25s_ease-out_infinite_alternate]"
+                className="w-full h-full object-cover object-center md:object-cover animate-[scale-in_25s_ease-out_infinite_alternate]"
+                style={{
+                  minHeight: '100%',
+                  minWidth: '100%',
+                  objectFit: 'cover',
+                  objectPosition: 'center center'
+                }}
                 onError={(e) => {
                   // Fallback if image fails to load
                   (e.target as HTMLImageElement).style.display = 'none';
