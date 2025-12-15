@@ -34,9 +34,7 @@ npm run preview
 
 Admin panel bilgileri environment variables ile yönetilir. `.env` dosyası Git'e commit edilmez (`.gitignore` içinde).
 
-**Önemli:** Production'da Netlify dashboard'dan environment variables ekleyin:
-- `VITE_ADMIN_USERNAME`
-- `VITE_ADMIN_PASSWORD`
+**Önemli:** Production'da Netlify dashboard'dan environment variables ekleyin (Site Settings → Environment variables).
 
 ## 🌐 Deployment
 
@@ -52,9 +50,7 @@ git push -u origin main
 
 2. Netlify dashboard'a git ve "New site from Git" seçeneğini kullan
 3. GitHub repository'ni bağla
-4. **Environment Variables** ekle (Netlify Dashboard → Site Settings → Environment variables):
-   - `VITE_ADMIN_USERNAME` - Admin kullanıcı adı
-   - `VITE_ADMIN_PASSWORD` - Admin şifresi
+4. **Environment Variables** ekle (Netlify Dashboard → Site Settings → Environment variables)
 5. Build ayarları otomatik algılanacak (`netlify.toml` sayesinde)
 6. Deploy butonuna tıkla
 

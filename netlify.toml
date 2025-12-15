@@ -9,4 +9,8 @@
 
 [build.environment]
   NODE_VERSION = "18"
+  # Secret scanning configuration - exclude build output and documentation
+  SECRETS_SCAN_OMIT_PATHS = "dist/**,README.md,package.json,package-lock.json,SECURITY.md"
+  # Exclude these keys from scanning (they are environment variable names, not actual secrets)
+  SECRETS_SCAN_OMIT_KEYS = "VITE_ADMIN_USERNAME,VITE_ADMIN_PASSWORD"
 
