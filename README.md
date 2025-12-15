@@ -52,9 +52,9 @@ git push -u origin main
 
 2. Netlify dashboard'a git ve "New site from Git" seçeneğini kullan
 3. GitHub repository'ni bağla
-4. **Environment Variables** ekle:
-   - `VITE_ADMIN_USERNAME` = `nazenin`
-   - `VITE_ADMIN_PASSWORD` = `09Nazenin022022`
+4. **Environment Variables** ekle (Netlify Dashboard → Site Settings → Environment variables):
+   - `VITE_ADMIN_USERNAME` = [kullanıcı adınız]
+   - `VITE_ADMIN_PASSWORD` = [şifreniz]
 5. Build ayarları otomatik algılanacak (`netlify.toml` sayesinde)
 6. Deploy butonuna tıkla
 
@@ -86,11 +86,12 @@ nazeninyaeverflora/
 
 ## 🔐 Admin Girişi
 
-Admin bilgileri environment variables üzerinden yönetilir. Varsayılan değerler:
-- **Kullanıcı Adı:** nazenin
-- **Şifre:** 09Nazenin022022
+Admin bilgileri environment variables üzerinden yönetilir. 
 
-**Güvenlik Notu:** Production'da mutlaka environment variables kullanın ve `.env` dosyasını Git'e commit etmeyin.
+**Güvenlik Notu:** 
+- Production'da mutlaka environment variables kullanın
+- `.env` dosyasını Git'e commit etmeyin
+- Şifreleri kod içinde veya dokümantasyonda saklamayın
 
 ## 📝 Notlar
 
