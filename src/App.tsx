@@ -178,35 +178,79 @@ export default function App() {
 
   // initial load from localStorage
   useEffect(() => {
-    try {
-      const storedProducts = window.localStorage.getItem(STORAGE_PRODUCTS_KEY);
-      if (storedProducts) {
-        const parsed = JSON.parse(storedProducts) as Product[];
-        if (Array.isArray(parsed) && parsed.length) {
-          setProducts(parsed);
+    const loadFromStorage = () => {
+      try {
+        const storedProducts = window.localStorage.getItem(STORAGE_PRODUCTS_KEY);
+        if (storedProducts) {
+          const parsed = JSON.parse(storedProducts) as Product[];
+          if (Array.isArray(parsed) && parsed.length) {
+            setProducts(parsed);
+          }
         }
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
-    }
 
-    try {
-      const storedOrders = window.localStorage.getItem(STORAGE_ORDERS_KEY);
-      if (storedOrders) {
-        const parsed = JSON.parse(storedOrders) as Order[];
-        if (Array.isArray(parsed)) {
-          setOrders(parsed);
+      try {
+        const storedOrders = window.localStorage.getItem(STORAGE_ORDERS_KEY);
+        if (storedOrders) {
+          const parsed = JSON.parse(storedOrders) as Order[];
+          if (Array.isArray(parsed)) {
+            setOrders(parsed);
+          }
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    // Initial load
+    loadFromStorage();
+
+    // Listen for storage changes (sync across tabs/windows on same device)
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === STORAGE_PRODUCTS_KEY && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue) as Product[];
+          if (Array.isArray(parsed)) {
+            setProducts(parsed);
+          }
+        } catch {
+          // ignore
         }
       }
-    } catch {
-      // ignore
-    }
+      if (e.key === STORAGE_ORDERS_KEY && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue) as Order[];
+          if (Array.isArray(parsed)) {
+            setOrders(parsed);
+          }
+        } catch {
+          // ignore
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for custom storage events (for same-tab updates)
+    const handleCustomStorage = () => {
+      loadFromStorage();
+    };
+    window.addEventListener('localStorageUpdate', handleCustomStorage);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('localStorageUpdate', handleCustomStorage);
+    };
   }, []);
 
   // persist products
   useEffect(() => {
     try {
       window.localStorage.setItem(STORAGE_PRODUCTS_KEY, JSON.stringify(products));
+      // Dispatch custom event for same-tab sync
+      window.dispatchEvent(new Event('localStorageUpdate'));
     } catch {
       // ignore
     }
@@ -216,6 +260,8 @@ export default function App() {
   useEffect(() => {
     try {
       window.localStorage.setItem(STORAGE_ORDERS_KEY, JSON.stringify(orders));
+      // Dispatch custom event for same-tab sync
+      window.dispatchEvent(new Event('localStorageUpdate'));
     } catch {
       // ignore
     }
@@ -374,16 +420,20 @@ export default function App() {
       {view === 'home' && (
         <div className="animate-fade-in">
           {/* HERO SECTION */}
-          <header className="relative h-screen w-full overflow-hidden flex items-center justify-center">
+          <header className="relative h-screen w-full overflow-hidden flex items-center justify-center bg-canvas">
             {/* Background image: luxury satin rose bouquet */}
             <div className="absolute inset-0 z-0">
               <img 
                 src="/image.png"
                 alt="Lüks Saten Gül Buketi"
-                className="w-full h-full object-cover animate-[scale-in_25s_ease-out_infinite_alternate]"
+                className="w-full h-full object-cover object-center animate-[scale-in_25s_ease-out_infinite_alternate]"
+                onError={(e) => {
+                  // Fallback if image fails to load
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
               />
               {/* Dark overlay to ensure text readability over bright satin highlights */}
-              <div className="absolute inset-0 bg-black/45" /> 
+              <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/35 to-black/50 md:bg-black/45" /> 
             </div>
 
             {/* Text block on translucent panel */}
