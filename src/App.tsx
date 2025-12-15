@@ -179,20 +179,24 @@ export default function App() {
 
   // Load data from Supabase or localStorage (fallback)
   useEffect(() => {
+    let isMounted = true;
+    let productsChannel: any = null;
+    let ordersChannel: any = null;
+
     const loadProducts = async () => {
-      if (supabase) {
+      if (supabase && isMounted) {
         try {
           const { data, error } = await supabase
             .from('products')
             .select('*')
             .order('id', { ascending: true });
 
+          if (!isMounted) return;
+
           if (error) {
             console.error('Supabase products error:', error);
-            // Fallback to localStorage
             loadFromLocalStorage();
           } else if (data && data.length > 0) {
-            // Convert database format to app format
             const formattedProducts: Product[] = data.map((p: any) => ({
               id: p.id,
               name: p.name,
@@ -202,28 +206,28 @@ export default function App() {
               description: p.description,
               color: p.color as ColorType,
             }));
-            setProducts(formattedProducts);
+            if (isMounted) setProducts(formattedProducts);
           } else {
-            // No data in Supabase, use defaults
-            setProducts(DEFAULT_PRODUCTS);
+            if (isMounted) setProducts(DEFAULT_PRODUCTS);
           }
         } catch (err) {
           console.error('Failed to load products from Supabase:', err);
-          loadFromLocalStorage();
+          if (isMounted) loadFromLocalStorage();
         }
       } else {
-        // Supabase not configured, use localStorage
         loadFromLocalStorage();
       }
     };
 
     const loadOrders = async () => {
-      if (supabase) {
+      if (supabase && isMounted) {
         try {
           const { data, error } = await supabase
             .from('orders')
             .select('*')
             .order('created_at', { ascending: false });
+
+          if (!isMounted) return;
 
           if (error) {
             console.error('Supabase orders error:', error);
@@ -239,11 +243,11 @@ export default function App() {
               note: o.note || undefined,
               status: o.status as 'pending' | 'confirmed',
             }));
-            setOrders(formattedOrders);
+            if (isMounted) setOrders(formattedOrders);
           }
         } catch (err) {
           console.error('Failed to load orders from Supabase:', err);
-          loadOrdersFromLocalStorage();
+          if (isMounted) loadOrdersFromLocalStorage();
         }
       } else {
         loadOrdersFromLocalStorage();
@@ -251,6 +255,7 @@ export default function App() {
     };
 
     const loadFromLocalStorage = () => {
+      if (!isMounted) return;
       try {
         const storedProducts = window.localStorage.getItem(STORAGE_PRODUCTS_KEY);
         if (storedProducts) {
@@ -267,6 +272,7 @@ export default function App() {
     };
 
     const loadOrdersFromLocalStorage = () => {
+      if (!isMounted) return;
       try {
         const storedOrders = window.localStorage.getItem(STORAGE_ORDERS_KEY);
         if (storedOrders) {
@@ -286,31 +292,48 @@ export default function App() {
 
     // Real-time subscriptions for Supabase
     if (supabase) {
-      const productsChannel = supabase
-        .channel('products-changes')
-        .on('postgres_changes', 
-          { event: '*', schema: 'public', table: 'products' },
-          () => {
-            loadProducts();
-          }
-        )
-        .subscribe();
+      try {
+        productsChannel = supabase
+          .channel('products-changes')
+          .on('postgres_changes', 
+            { event: '*', schema: 'public', table: 'products' },
+            () => {
+              if (isMounted) loadProducts();
+            }
+          )
+          .subscribe();
 
-      const ordersChannel = supabase
-        .channel('orders-changes')
-        .on('postgres_changes',
-          { event: '*', schema: 'public', table: 'orders' },
-          () => {
-            loadOrders();
-          }
-        )
-        .subscribe();
-
-      return () => {
-        productsChannel.unsubscribe();
-        ordersChannel.unsubscribe();
-      };
+        ordersChannel = supabase
+          .channel('orders-changes')
+          .on('postgres_changes',
+            { event: '*', schema: 'public', table: 'orders' },
+            () => {
+              if (isMounted) loadOrders();
+            }
+          )
+          .subscribe();
+      } catch (err) {
+        console.error('Failed to setup Supabase subscriptions:', err);
+      }
     }
+
+    return () => {
+      isMounted = false;
+      if (productsChannel) {
+        try {
+          productsChannel.unsubscribe();
+        } catch (e) {
+          // ignore
+        }
+      }
+      if (ordersChannel) {
+        try {
+          ordersChannel.unsubscribe();
+        } catch (e) {
+          // ignore
+        }
+      }
+    };
   }, []);
 
   // Persist products to Supabase or localStorage (fallback)
@@ -1335,8 +1358,15 @@ export default function App() {
               className="space-y-4"
               onSubmit={e => {
                 e.preventDefault();
-                const adminUsername = (import.meta.env as any).VITE_ADMIN_USERNAME;
-                const adminPassword = (import.meta.env as any).VITE_ADMIN_PASSWORD;
+                const getEnvVar = (key: string): string => {
+                  try {
+                    return (import.meta.env as any)[key] || '';
+                  } catch {
+                    return '';
+                  }
+                };
+                const adminUsername = getEnvVar('VITE_ADMIN_USERNAME');
+                const adminPassword = getEnvVar('VITE_ADMIN_PASSWORD');
                 
                 if (!adminUsername || !adminPassword) {
                   setAdminError('Admin bilgileri yapılandırılmamış. Lütfen sistem yöneticisine başvurun.');

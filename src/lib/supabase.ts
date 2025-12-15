@@ -1,22 +1,36 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = (import.meta.env as any).VITE_SUPABASE_URL || '';
-const supabaseAnonKey = (import.meta.env as any).VITE_SUPABASE_ANON_KEY || '';
+// Safely get environment variables
+const getEnvVar = (key: string): string => {
+  try {
+    return (import.meta.env as any)[key] || '';
+  } catch {
+    return '';
+  }
+};
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('⚠️ Supabase URL veya Anon Key bulunamadı. localStorage kullanılacak.');
-  console.warn('Environment variables kontrol edin: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY');
-} else {
-  console.log('✅ Supabase bağlantısı kuruldu:', supabaseUrl.substring(0, 30) + '...');
-}
+const supabaseUrl = getEnvVar('VITE_SUPABASE_URL');
+const supabaseAnonKey = getEnvVar('VITE_SUPABASE_ANON_KEY');
 
-export const supabase = supabaseUrl && supabaseAnonKey
-  ? createClient(supabaseUrl, supabaseAnonKey, {
+let supabase: SupabaseClient | null = null;
+
+try {
+  if (supabaseUrl && supabaseAnonKey) {
+    supabase = createClient(supabaseUrl, supabaseAnonKey, {
       realtime: {
         params: {
           eventsPerSecond: 10
         }
       }
-    })
-  : null;
+    });
+    console.log('✅ Supabase bağlantısı kuruldu');
+  } else {
+    console.warn('⚠️ Supabase URL veya Anon Key bulunamadı. localStorage kullanılacak.');
+  }
+} catch (error) {
+  console.error('❌ Supabase client oluşturulurken hata:', error);
+  supabase = null;
+}
+
+export { supabase };
 
