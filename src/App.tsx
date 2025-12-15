@@ -1360,8 +1360,8 @@ export default function App() {
                 e.preventDefault();
                 const getEnvVar = (key: string): string => {
                   try {
-                    const env = import.meta.env as any;
-                    return env[key] || '';
+                    // @ts-ignore - Vite environment variables
+                    return import.meta.env[key] || '';
                   } catch {
                     return '';
                   }
