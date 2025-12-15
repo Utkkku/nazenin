@@ -1091,8 +1091,13 @@ export default function App() {
               className="space-y-4"
               onSubmit={e => {
                 e.preventDefault();
-                const adminUsername = (import.meta.env as any).VITE_ADMIN_USERNAME || 'nazenin';
-                const adminPassword = (import.meta.env as any).VITE_ADMIN_PASSWORD || '09Nazenin022022';
+                const adminUsername = (import.meta.env as any).VITE_ADMIN_USERNAME;
+                const adminPassword = (import.meta.env as any).VITE_ADMIN_PASSWORD;
+                
+                if (!adminUsername || !adminPassword) {
+                  setAdminError('Admin bilgileri yapılandırılmamış. Lütfen sistem yöneticisine başvurun.');
+                  return;
+                }
                 if (adminUser === adminUsername && adminPass === adminPassword) {
                   setIsAdminAuthenticated(true);
                   setAdminLoginOpen(false);
