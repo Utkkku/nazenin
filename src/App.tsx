@@ -348,16 +348,43 @@ export default function App() {
           }
         }
       } else {
-        // No Supabase connection, use defaults
+        // No Supabase connection, try localStorage
         if (isMounted) {
-          setPaymentInfo({
-            iban: defaultIban,
-            accountHolderName: defaultAccountHolder
-          });
-          setSettings({
-            iban: defaultIban,
-            accountHolderName: defaultAccountHolder
-          });
+          try {
+            const storedSettings = window.localStorage.getItem('nazeninya_settings');
+            if (storedSettings) {
+              const parsed = JSON.parse(storedSettings);
+              setPaymentInfo({
+                iban: parsed.iban || defaultIban,
+                accountHolderName: parsed.accountHolderName || defaultAccountHolder
+              });
+              setSettings({
+                iban: parsed.iban || defaultIban,
+                accountHolderName: parsed.accountHolderName || defaultAccountHolder
+              });
+            } else {
+              // Use defaults if no localStorage data
+              setPaymentInfo({
+                iban: defaultIban,
+                accountHolderName: defaultAccountHolder
+              });
+              setSettings({
+                iban: defaultIban,
+                accountHolderName: defaultAccountHolder
+              });
+            }
+          } catch (err) {
+            console.error('Failed to load from localStorage:', err);
+            // Use defaults on error
+            setPaymentInfo({
+              iban: defaultIban,
+              accountHolderName: defaultAccountHolder
+            });
+            setSettings({
+              iban: defaultIban,
+              accountHolderName: defaultAccountHolder
+            });
+          }
         }
       }
     };
@@ -1357,8 +1384,25 @@ export default function App() {
                         setSettingsSaveStatus('error');
                       }
                     } else {
-                      setSettingsError('Supabase bağlantısı yok. Ayarlar kaydedilemedi.');
-                      setSettingsSaveStatus('error');
+                      // Fallback to localStorage if Supabase is not available
+                      try {
+                        const settingsToSave = {
+                          iban: settings.iban,
+                          accountHolderName: settings.accountHolderName
+                        };
+                        window.localStorage.setItem('nazeninya_settings', JSON.stringify(settingsToSave));
+                        setPaymentInfo(settingsToSave);
+                        setSettingsSaveStatus('success');
+                        console.log('Settings saved to localStorage (Supabase not available)');
+                        
+                        setTimeout(() => {
+                          setSettingsSaveStatus('idle');
+                        }, 3000);
+                      } catch (err: any) {
+                        console.error('Failed to save to localStorage:', err);
+                        setSettingsError('Ayarlar kaydedilemedi. Lütfen tarayıcı konsolunu kontrol edin.');
+                        setSettingsSaveStatus('error');
+                      }
                     }
                   }}
                   className="space-y-6 border border-stone-200 p-6 rounded bg-paper/60"
