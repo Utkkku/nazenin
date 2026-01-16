@@ -814,8 +814,46 @@ export default function App() {
     setOrders(prev => prev.map(o => (o.id === id ? { ...o, status: 'confirmed' } : o)));
   };
 
-  const handleDeleteOrder = (id: number) => {
+  const handleDeleteOrder = async (id: number) => {
+    // Update state immediately for UI responsiveness
     setOrders(prev => prev.filter(o => o.id !== id));
+    
+    // Delete from Supabase if available
+    if (supabase) {
+      try {
+        const { error } = await supabase
+          .from('orders')
+          .delete()
+          .eq('id', id);
+        
+        if (error) {
+          console.error('Failed to delete order from Supabase:', error);
+          // Revert state change on error
+          const { data } = await supabase
+            .from('orders')
+            .select('*')
+            .eq('id', id)
+            .single();
+          
+          if (data) {
+            setOrders(prev => [{
+              id: data.id,
+              date: data.date || data.created_at,
+              customerName: data.customer_name,
+              email: data.email,
+              phone: data.phone || '',
+              address: data.address,
+              total: Number(data.total),
+              note: data.note || undefined,
+              status: data.status as 'pending' | 'confirmed',
+            }, ...prev]);
+          }
+        }
+      } catch (err) {
+        console.error('Error deleting order:', err);
+      }
+    }
+    // If no Supabase, localStorage will be updated via useEffect
   };
 
   // --- FILTER LOGIC ---
