@@ -42,6 +42,7 @@ interface Order {
   date: string;
   customerName: string;
   email: string;
+  phone: string;
   address: string;
   total: number;
   note?: string;
@@ -146,13 +147,15 @@ export default function App() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [orderStatus, setOrderStatus] = useState<'idle' | 'processing' | 'success'>('idle');
-  const [formData, setFormData] = useState({ name: '', email: '', address: '', card: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', phone: '', address: '', card: '' });
+  const [paymentInfo, setPaymentInfo] = useState({ iban: '', accountHolderName: '' });
 
   // --- FILTER STATE ---
 
   const [filterColor, setFilterColor] = useState<ColorType | 'all'>('all');
   const [sortOption, setSortOption] = useState<'default' | 'price-asc' | 'price-desc'>('default');
-  const [adminTab, setAdminTab] = useState<'orders' | 'products'>('orders');
+  const [adminTab, setAdminTab] = useState<'orders' | 'products' | 'settings'>('orders');
+  const [settings, setSettings] = useState({ iban: '', accountHolderName: '' });
 
   const [newProduct, setNewProduct] = useState<Omit<Product, 'id'>>({
     name: '',
@@ -238,6 +241,7 @@ export default function App() {
               date: o.date || o.created_at,
               customerName: o.customer_name,
               email: o.email,
+              phone: o.phone || '',
               address: o.address,
               total: Number(o.total),
               note: o.note || undefined,
@@ -286,9 +290,40 @@ export default function App() {
       }
     };
 
+    // Load settings
+    const loadSettings = async () => {
+      if (supabase && isMounted) {
+        try {
+          const { data, error } = await supabase
+            .from('settings')
+            .select('*');
+
+          if (!isMounted) return;
+
+          if (!error && data) {
+            const ibanSetting = data.find(s => s.key === 'iban');
+            const accountHolderSetting = data.find(s => s.key === 'account_holder_name');
+            if (isMounted) {
+              setPaymentInfo({
+                iban: ibanSetting?.value || 'TR00 0000 0000 0000 0000 0000 00',
+                accountHolderName: accountHolderSetting?.value || 'Nazeninyaeverflora'
+              });
+              setSettings({
+                iban: ibanSetting?.value || 'TR00 0000 0000 0000 0000 0000 00',
+                accountHolderName: accountHolderSetting?.value || 'Nazeninyaeverflora'
+              });
+            }
+          }
+        } catch (err) {
+          console.error('Failed to load settings:', err);
+        }
+      }
+    };
+
     // Initial load
     loadProducts();
     loadOrders();
+    loadSettings();
 
     // Real-time subscriptions for Supabase
     if (supabase) {
@@ -309,6 +344,14 @@ export default function App() {
             { event: '*', schema: 'public', table: 'orders' },
             () => {
               if (isMounted) loadOrders();
+            }
+          )
+          .on('postgres_changes',
+            { event: '*', schema: 'public', table: 'settings' },
+            () => {
+              if (isMounted) {
+                loadSettings();
+              }
             }
           )
           .subscribe();
@@ -410,6 +453,7 @@ export default function App() {
             id: o.id,
             customer_name: o.customerName,
             email: o.email,
+            phone: o.phone,
             address: o.address,
             total: o.total,
             note: o.note || null,
@@ -483,6 +527,7 @@ export default function App() {
       date: new Date().toISOString(),
       customerName: formData.name,
       email: formData.email,
+      phone: formData.phone,
       address: formData.address,
       total: cartTotal,
       note: undefined,
@@ -497,6 +542,7 @@ export default function App() {
           .insert({
             customer_name: newOrder.customerName,
             email: newOrder.email,
+            phone: newOrder.phone,
             address: newOrder.address,
             total: newOrder.total,
             note: newOrder.note || null,
@@ -529,7 +575,7 @@ export default function App() {
   const closeCheckout = () => {
     setIsCheckoutOpen(false);
     setOrderStatus('idle');
-    setFormData({ name: '', email: '', address: '', card: '' });
+    setFormData({ name: '', email: '', phone: '', address: '', card: '' });
   };
 
   const handleViewChange = (newView: 'home' | 'products') => {
@@ -858,6 +904,16 @@ export default function App() {
                 <span className="text-[10px] opacity-70">{products.length}</span>
               </button>
               <button
+                onClick={() => setAdminTab('settings')}
+                className={`flex justify-between items-center px-3 py-2 rounded-sm text-left tracking-[0.18em] uppercase ${
+                  adminTab === 'settings'
+                    ? 'bg-wood-900 text-white'
+                    : 'text-stone-600 hover:bg-stone-100'
+                }`}
+              >
+                <span>Ayarlar</span>
+              </button>
+              <button
                 onClick={() => { setIsAdminAuthenticated(false); setView('home'); }}
                 className="mt-4 px-3 py-2 rounded-sm text-left tracking-[0.18em] uppercase text-stone-400 hover:text-wood-900 hover:bg-stone-100"
               >
@@ -892,6 +948,7 @@ export default function App() {
                         <tr>
                           <th className="py-3 pr-4">Tarih</th>
                           <th className="py-3 pr-4">Müşteri</th>
+                          <th className="py-3 pr-4">Telefon</th>
                           <th className="py-3 pr-4">Tutar</th>
                           <th className="py-3 pr-4">Adres</th>
                           <th className="py-3 pr-4">Durum</th>
@@ -914,6 +971,9 @@ export default function App() {
                               <div className="text-[11px] text-stone-400">
                                 {order.email}
                               </div>
+                            </td>
+                            <td className="py-3 pr-4 align-top text-[11px] text-stone-500">
+                              {order.phone}
                             </td>
                             <td className="py-3 pr-4 align-top">
                               ₺{order.total.toLocaleString('tr-TR')}
@@ -1137,6 +1197,74 @@ export default function App() {
                 </div>
               </div>
             )}
+
+            {adminTab === 'settings' && (
+              <div className="space-y-8">
+                <header className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                  <div>
+                    <span className="text-[10px] tracking-[0.2em] uppercase text-stone-400">
+                      Ödeme Bilgileri
+                    </span>
+                    <h3 className="font-serif text-2xl text-stone-800">Ayarlar</h3>
+                  </div>
+                </header>
+
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (supabase) {
+                      try {
+                        await supabase
+                          .from('settings')
+                          .upsert([
+                            { key: 'iban', value: settings.iban },
+                            { key: 'account_holder_name', value: settings.accountHolderName }
+                          ], { onConflict: 'key' });
+                        
+                        setPaymentInfo({
+                          iban: settings.iban,
+                          accountHolderName: settings.accountHolderName
+                        });
+                      } catch (err) {
+                        console.error('Failed to save settings:', err);
+                      }
+                    }
+                  }}
+                  className="space-y-6 border border-stone-200 p-6 rounded bg-paper/60"
+                >
+                  <div>
+                    <label className="block text-xs uppercase tracking-[0.2em] text-stone-400 mb-2">
+                      IBAN Adresi
+                    </label>
+                    <input
+                      required
+                      placeholder="TR00 0000 0000 0000 0000 0000 00"
+                      className="w-full bg-transparent border-b border-stone-300 py-2 text-sm text-stone-800 placeholder:text-stone-400 focus:border-wood-900 outline-none"
+                      value={settings.iban}
+                      onChange={e => setSettings({ ...settings, iban: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs uppercase tracking-[0.2em] text-stone-400 mb-2">
+                      Hesap Sahibi Ad Soyad
+                    </label>
+                    <input
+                      required
+                      placeholder="Ad Soyad"
+                      className="w-full bg-transparent border-b border-stone-300 py-2 text-sm text-stone-800 placeholder:text-stone-400 focus:border-wood-900 outline-none"
+                      value={settings.accountHolderName}
+                      onChange={e => setSettings({ ...settings, accountHolderName: e.target.value })}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-sm bg-wood-900 text-white text-[11px] uppercase tracking-[0.18em] hover:bg-stone-800"
+                  >
+                    Ayarları Kaydet
+                  </button>
+                </form>
+              </div>
+            )}
           </section>
         </div>
       )}
@@ -1224,6 +1352,25 @@ export default function App() {
                 </div>
                 <h3 className="font-serif text-3xl text-stone-800 mb-4">Mirasınız Hazırlanıyor</h3>
                 <p className="text-stone-500 font-light mb-8 max-w-xs mx-auto">Sonsuz güzellikteki seçimleriniz, özenle paketlenip size ulaştırılacak.</p>
+                
+                <div className="bg-paper border border-stone-200 rounded-lg p-6 mb-8 text-left">
+                  <h4 className="font-serif text-lg text-stone-800 mb-4">Ödeme Bilgileri</h4>
+                  <p className="text-xs text-stone-500 mb-2">Lütfen aşağıdaki hesaba ödemenizi yapın:</p>
+                  <div className="space-y-3 mt-4">
+                    <div>
+                      <span className="text-[10px] uppercase tracking-[0.2em] text-stone-400 block mb-1">Hesap Sahibi</span>
+                      <p className="text-sm font-medium text-stone-800">{paymentInfo.accountHolderName}</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase tracking-[0.2em] text-stone-400 block mb-1">IBAN</span>
+                      <p className="text-sm font-mono text-stone-800 break-all">{paymentInfo.iban}</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-stone-200">
+                    <p className="text-xs text-stone-500 italic">Ödemenizi yaptıktan sonra siparişiniz onaylanacak ve kargoya verilecektir.</p>
+                  </div>
+                </div>
+                
                 <button onClick={closeCheckout} className="text-xs font-bold tracking-[0.2em] uppercase text-wood-900 border-b border-wood-900 pb-1 hover:text-stone-800 hover:border-stone-800 transition-colors">
                   Galeriye Dön
                 </button>
@@ -1248,6 +1395,14 @@ export default function App() {
                       className="w-full bg-transparent border-b border-stone-300 py-3 text-stone-800 placeholder:text-stone-400 focus:border-wood-900 outline-none transition-colors font-light"
                       value={formData.email}
                       onChange={e => setFormData({...formData, email: e.target.value})}
+                    />
+                    <input 
+                      required
+                      type="tel"
+                      placeholder="Telefon Numarası"
+                      className="w-full bg-transparent border-b border-stone-300 py-3 text-stone-800 placeholder:text-stone-400 focus:border-wood-900 outline-none transition-colors font-light"
+                      value={formData.phone}
+                      onChange={e => setFormData({...formData, phone: e.target.value})}
                     />
                     <textarea 
                       required

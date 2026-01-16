@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS orders (
   date TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
   customer_name TEXT NOT NULL,
   email TEXT NOT NULL,
+  phone TEXT NOT NULL,
   address TEXT NOT NULL,
   total DECIMAL(10, 2) NOT NULL,
   note TEXT,
@@ -88,3 +89,35 @@ CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON products
 CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON orders
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- Settings Table (for IBAN and account holder name)
+CREATE TABLE IF NOT EXISTS settings (
+  id BIGSERIAL PRIMARY KEY,
+  key TEXT UNIQUE NOT NULL,
+  value TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- Enable Row Level Security for settings
+ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
+
+-- Policies: Allow public read access to settings
+CREATE POLICY "Settings are viewable by everyone"
+  ON settings FOR SELECT
+  USING (true);
+
+-- Policies: Allow public update for settings (admin operations)
+CREATE POLICY "Settings are editable by everyone"
+  ON settings FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+-- Insert default settings
+INSERT INTO settings (key, value) VALUES
+  ('iban', 'TR00 0000 0000 0000 0000 0000 00'),
+  ('account_holder_name', 'Nazeninyaeverflora')
+ON CONFLICT (key) DO NOTHING;
+
+-- Create trigger for settings updated_at
+CREATE TRIGGER update_settings_updated_at BEFORE UPDATE ON settings
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
