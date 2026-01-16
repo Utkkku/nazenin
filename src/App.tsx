@@ -771,11 +771,49 @@ export default function App() {
     setAdminLoginOpen(false);
   };
 
-  const handleAddProduct = (e: React.FormEvent) => {
+  const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     const nextId = products.length ? Math.max(...products.map(p => p.id)) + 1 : 1;
     const created: Product = { id: nextId, ...newProduct };
+    
+    // Update state immediately for UI responsiveness
     setProducts(prev => [...prev, created]);
+    
+    // Save to Supabase immediately
+    if (supabase) {
+      try {
+        const { error } = await supabase
+          .from('products')
+          .insert({
+            id: created.id,
+            name: created.name,
+            category: created.category,
+            price: created.price,
+            image: created.image,
+            description: created.description,
+            color: created.color,
+          });
+        
+        if (error) {
+          console.error('Failed to save product to Supabase:', error);
+          // Revert state change on error
+          setProducts(prev => prev.filter(p => p.id !== created.id));
+          alert('Ürün kaydedilemedi: ' + error.message);
+        } else {
+          // Success - product is saved to Supabase and will sync to all devices
+          console.log('Product saved to Supabase successfully');
+        }
+      } catch (err: any) {
+        console.error('Error saving product:', err);
+        // Revert state change on error
+        setProducts(prev => prev.filter(p => p.id !== created.id));
+        alert('Bir hata oluştu: ' + (err?.message || 'Bilinmeyen hata'));
+      }
+    } else {
+      // No Supabase - will be saved to localStorage via useEffect
+      console.warn('Supabase not available - product saved to localStorage (only on this device)');
+    }
+    
     setNewProduct({
       name: '',
       category: '',
