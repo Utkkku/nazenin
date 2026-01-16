@@ -1224,6 +1224,16 @@ export default function App() {
 
           {/* Content */}
           <section className="flex-1 bg-white border border-stone-200 p-6 md:p-8 shadow-sm">
+            {!supabase && (
+              <div className="mb-6 bg-amber-50 border border-amber-200 rounded-lg p-4 text-xs text-amber-800">
+                <p className="font-medium mb-1">⚠️ Supabase Bağlantısı Yok</p>
+                <p className="text-amber-700">
+                  Ürünler ve siparişler sadece bu cihazda (localStorage) saklanıyor. 
+                  Tüm cihazlarda senkronize olması için Supabase bağlantısı gereklidir.
+                  Lütfen Netlify Dashboard'da environment variables'ları kontrol edin.
+                </p>
+              </div>
+            )}
             {adminTab === 'orders' && (
               <>
                 <header className="mb-6 flex items-center justify-between">
