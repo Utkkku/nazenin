@@ -148,7 +148,7 @@ export default function App() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [orderStatus, setOrderStatus] = useState<'idle' | 'processing' | 'success'>('idle');
   const [formData, setFormData] = useState({ name: '', email: '', phone: '', address: '', card: '' });
-  const [paymentInfo, setPaymentInfo] = useState({ iban: '', accountHolderName: '' });
+  const [paymentInfo, setPaymentInfo] = useState({ iban: 'TR00 0000 0000 0000 0000 0000 00', accountHolderName: 'Nazeninyaeverflora' });
 
   // --- FILTER STATE ---
 
@@ -292,6 +292,9 @@ export default function App() {
 
     // Load settings
     const loadSettings = async () => {
+      const defaultIban = 'TR00 0000 0000 0000 0000 0000 00';
+      const defaultAccountHolder = 'Nazeninyaeverflora';
+      
       if (supabase && isMounted) {
         try {
           const { data, error } = await supabase
@@ -300,22 +303,59 @@ export default function App() {
 
           if (!isMounted) return;
 
-          if (!error && data) {
+          if (!error && data && data.length > 0) {
             const ibanSetting = data.find(s => s.key === 'iban');
             const accountHolderSetting = data.find(s => s.key === 'account_holder_name');
             if (isMounted) {
+              const iban = ibanSetting?.value || defaultIban;
+              const accountHolder = accountHolderSetting?.value || defaultAccountHolder;
               setPaymentInfo({
-                iban: ibanSetting?.value || 'TR00 0000 0000 0000 0000 0000 00',
-                accountHolderName: accountHolderSetting?.value || 'Nazeninyaeverflora'
+                iban: iban,
+                accountHolderName: accountHolder
               });
               setSettings({
-                iban: ibanSetting?.value || 'TR00 0000 0000 0000 0000 0000 00',
-                accountHolderName: accountHolderSetting?.value || 'Nazeninyaeverflora'
+                iban: iban,
+                accountHolderName: accountHolder
+              });
+            }
+          } else {
+            // If no data or error, use defaults
+            if (isMounted) {
+              setPaymentInfo({
+                iban: defaultIban,
+                accountHolderName: defaultAccountHolder
+              });
+              setSettings({
+                iban: defaultIban,
+                accountHolderName: defaultAccountHolder
               });
             }
           }
         } catch (err) {
           console.error('Failed to load settings:', err);
+          // Fallback to defaults on error
+          if (isMounted) {
+            setPaymentInfo({
+              iban: defaultIban,
+              accountHolderName: defaultAccountHolder
+            });
+            setSettings({
+              iban: defaultIban,
+              accountHolderName: defaultAccountHolder
+            });
+          }
+        }
+      } else {
+        // No Supabase connection, use defaults
+        if (isMounted) {
+          setPaymentInfo({
+            iban: defaultIban,
+            accountHolderName: defaultAccountHolder
+          });
+          setSettings({
+            iban: defaultIban,
+            accountHolderName: defaultAccountHolder
+          });
         }
       }
     };
@@ -566,9 +606,59 @@ export default function App() {
       setOrders(prev => [newOrder, ...prev]);
     }
 
+    // Reload payment info before showing success
+    const reloadPaymentInfo = async () => {
+      const defaultIban = 'TR00 0000 0000 0000 0000 0000 00';
+      const defaultAccountHolder = 'Nazeninyaeverflora';
+      
+      if (supabase) {
+        try {
+          const { data, error } = await supabase
+            .from('settings')
+            .select('*');
+          
+          if (!error && data && data.length > 0) {
+            const ibanSetting = data.find(s => s.key === 'iban');
+            const accountHolderSetting = data.find(s => s.key === 'account_holder_name');
+            const iban = ibanSetting?.value || defaultIban;
+            const accountHolder = accountHolderSetting?.value || defaultAccountHolder;
+            setPaymentInfo({
+              iban: iban,
+              accountHolderName: accountHolder
+            });
+            console.log('Payment info loaded:', { iban, accountHolder });
+          } else {
+            // Use defaults if no data
+            setPaymentInfo({
+              iban: defaultIban,
+              accountHolderName: defaultAccountHolder
+            });
+            console.log('Using default payment info');
+          }
+        } catch (err) {
+          console.error('Failed to reload payment info:', err);
+          // Use defaults on error
+          setPaymentInfo({
+            iban: defaultIban,
+            accountHolderName: defaultAccountHolder
+          });
+        }
+      } else {
+        // No Supabase, use defaults
+        setPaymentInfo({
+          iban: defaultIban,
+          accountHolderName: defaultAccountHolder
+        });
+        console.log('No Supabase connection, using defaults');
+      }
+    };
+    
+    reloadPaymentInfo();
+    
     setTimeout(() => {
       setOrderStatus('success');
       setCart([]);
+      console.log('Order status set to success, paymentInfo:', paymentInfo);
     }, 2000);
   };
 
@@ -1359,11 +1449,15 @@ export default function App() {
                   <div className="space-y-3 mt-4">
                     <div>
                       <span className="text-[10px] uppercase tracking-[0.2em] text-stone-400 block mb-1">Hesap Sahibi</span>
-                      <p className="text-sm font-medium text-stone-800">{paymentInfo.accountHolderName}</p>
+                      <p className="text-sm font-medium text-stone-800">
+                        {(paymentInfo && paymentInfo.accountHolderName) || (settings && settings.accountHolderName) || 'Nazeninyaeverflora'}
+                      </p>
                     </div>
                     <div>
                       <span className="text-[10px] uppercase tracking-[0.2em] text-stone-400 block mb-1">IBAN</span>
-                      <p className="text-sm font-mono text-stone-800 break-all">{paymentInfo.iban}</p>
+                      <p className="text-sm font-mono text-stone-800 break-all">
+                        {(paymentInfo && paymentInfo.iban) || (settings && settings.iban) || 'TR00 0000 0000 0000 0000 0000 00'}
+                      </p>
                     </div>
                   </div>
                   <div className="mt-4 pt-4 border-t border-stone-200">
