@@ -156,6 +156,8 @@ export default function App() {
   const [sortOption, setSortOption] = useState<'default' | 'price-asc' | 'price-desc'>('default');
   const [adminTab, setAdminTab] = useState<'orders' | 'products' | 'settings'>('orders');
   const [settings, setSettings] = useState({ iban: '', accountHolderName: '' });
+  const [settingsSaveStatus, setSettingsSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+  const [settingsError, setSettingsError] = useState('');
 
   const [newProduct, setNewProduct] = useState<Omit<Product, 'id'>>({
     name: '',
@@ -1302,22 +1304,61 @@ export default function App() {
                 <form
                   onSubmit={async (e) => {
                     e.preventDefault();
+                    setSettingsSaveStatus('saving');
+                    setSettingsError('');
+                    
                     if (supabase) {
                       try {
-                        await supabase
+                        const { error } = await supabase
                           .from('settings')
                           .upsert([
                             { key: 'iban', value: settings.iban },
                             { key: 'account_holder_name', value: settings.accountHolderName }
                           ], { onConflict: 'key' });
                         
-                        setPaymentInfo({
-                          iban: settings.iban,
-                          accountHolderName: settings.accountHolderName
-                        });
-                      } catch (err) {
+                        if (error) {
+                          console.error('Failed to save settings:', error);
+                          setSettingsError('Ayarlar kaydedilemedi: ' + error.message);
+                          setSettingsSaveStatus('error');
+                        } else {
+                          // Success - update paymentInfo and reload settings
+                          setPaymentInfo({
+                            iban: settings.iban,
+                            accountHolderName: settings.accountHolderName
+                          });
+                          setSettingsSaveStatus('success');
+                          
+                          // Reload settings from database to confirm
+                          const { data } = await supabase
+                            .from('settings')
+                            .select('*');
+                          
+                          if (data && data.length > 0) {
+                            const ibanSetting = data.find(s => s.key === 'iban');
+                            const accountHolderSetting = data.find(s => s.key === 'account_holder_name');
+                            setSettings({
+                              iban: ibanSetting?.value || settings.iban,
+                              accountHolderName: accountHolderSetting?.value || settings.accountHolderName
+                            });
+                            setPaymentInfo({
+                              iban: ibanSetting?.value || settings.iban,
+                              accountHolderName: accountHolderSetting?.value || settings.accountHolderName
+                            });
+                          }
+                          
+                          // Reset success message after 3 seconds
+                          setTimeout(() => {
+                            setSettingsSaveStatus('idle');
+                          }, 3000);
+                        }
+                      } catch (err: any) {
                         console.error('Failed to save settings:', err);
+                        setSettingsError('Bir hata oluştu: ' + (err?.message || 'Bilinmeyen hata'));
+                        setSettingsSaveStatus('error');
                       }
+                    } else {
+                      setSettingsError('Supabase bağlantısı yok. Ayarlar kaydedilemedi.');
+                      setSettingsSaveStatus('error');
                     }
                   }}
                   className="space-y-6 border border-stone-200 p-6 rounded bg-paper/60"
@@ -1346,11 +1387,22 @@ export default function App() {
                       onChange={e => setSettings({ ...settings, accountHolderName: e.target.value })}
                     />
                   </div>
+                  {settingsError && (
+                    <div className="bg-rose-50 border border-rose-200 rounded p-3 text-xs text-rose-800">
+                      {settingsError}
+                    </div>
+                  )}
+                  {settingsSaveStatus === 'success' && (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded p-3 text-xs text-emerald-800">
+                      ✓ Ayarlar başarıyla kaydedildi!
+                    </div>
+                  )}
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-sm bg-wood-900 text-white text-[11px] uppercase tracking-[0.18em] hover:bg-stone-800"
+                    disabled={settingsSaveStatus === 'saving'}
+                    className="px-5 py-2 rounded-sm bg-wood-900 text-white text-[11px] uppercase tracking-[0.18em] hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Ayarları Kaydet
+                    {settingsSaveStatus === 'saving' ? 'Kaydediliyor...' : 'Ayarları Kaydet'}
                   </button>
                 </form>
               </div>
