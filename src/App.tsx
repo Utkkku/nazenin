@@ -1381,6 +1381,17 @@ export default function App() {
                   </div>
                 </header>
 
+                {!supabase && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-xs text-amber-800">
+                    <p className="font-medium mb-1">⚠️ Supabase Bağlantısı Yok</p>
+                    <p className="text-amber-700">
+                      Ayarlar şu anda sadece bu cihazda (localStorage) saklanıyor. 
+                      Tüm cihazlarda senkronize olması için Supabase bağlantısı gereklidir.
+                      Lütfen Netlify Dashboard'da environment variables'ları kontrol edin.
+                    </p>
+                  </div>
+                )}
+
                 <form
                   onSubmit={async (e) => {
                     e.preventDefault();
