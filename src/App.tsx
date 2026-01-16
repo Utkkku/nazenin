@@ -1457,11 +1457,13 @@ export default function App() {
                         window.localStorage.setItem('nazeninya_settings', JSON.stringify(settingsToSave));
                         setPaymentInfo(settingsToSave);
                         setSettingsSaveStatus('success');
+                        setSettingsError('⚠️ Ayarlar sadece bu cihazda kaydedildi (localStorage). Tüm cihazlarda görünmesi için Supabase bağlantısı gereklidir.');
                         console.log('Settings saved to localStorage (Supabase not available)');
                         
                         setTimeout(() => {
                           setSettingsSaveStatus('idle');
-                        }, 3000);
+                          setSettingsError('');
+                        }, 5000);
                       } catch (err: any) {
                         console.error('Failed to save to localStorage:', err);
                         setSettingsError('Ayarlar kaydedilemedi. Lütfen tarayıcı konsolunu kontrol edin.');
