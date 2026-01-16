@@ -201,19 +201,27 @@ export default function App() {
           if (error) {
             console.error('Supabase products error:', error);
             loadFromLocalStorage();
-          } else if (data && data.length > 0) {
-            const formattedProducts: Product[] = data.map((p: any) => ({
-              id: p.id,
-              name: p.name,
-              category: p.category,
-              price: Number(p.price),
-              image: p.image,
-              description: p.description,
-              color: p.color as ColorType,
-            }));
-            if (isMounted) setProducts(formattedProducts);
+          } else if (data) {
+            // If data is empty array, set empty array (don't reset to defaults)
+            // Only use defaults if Supabase has no data at all (null/undefined)
+            if (data.length > 0) {
+              const formattedProducts: Product[] = data.map((p: any) => ({
+                id: p.id,
+                name: p.name,
+                category: p.category,
+                price: Number(p.price),
+                image: p.image,
+                description: p.description,
+                color: p.color as ColorType,
+              }));
+              if (isMounted) setProducts(formattedProducts);
+            } else {
+              // Empty array from Supabase - user has deleted all products
+              if (isMounted) setProducts([]);
+            }
           } else {
-            if (isMounted) setProducts(DEFAULT_PRODUCTS);
+            // No data at all - try localStorage first, then defaults
+            loadFromLocalStorage();
           }
         } catch (err) {
           console.error('Failed to load products from Supabase:', err);
@@ -266,7 +274,8 @@ export default function App() {
         const storedProducts = window.localStorage.getItem(STORAGE_PRODUCTS_KEY);
         if (storedProducts) {
           const parsed = JSON.parse(storedProducts) as Product[];
-          if (Array.isArray(parsed) && parsed.length) {
+          if (Array.isArray(parsed)) {
+            // Use stored products even if empty (user may have deleted all)
             setProducts(parsed);
             return;
           }
@@ -274,7 +283,14 @@ export default function App() {
       } catch {
         // ignore
       }
-      setProducts(DEFAULT_PRODUCTS);
+      // Only use defaults if localStorage is empty/doesn't exist AND Supabase is not available
+      // This is the initial load scenario
+      if (isMounted && !supabase) {
+        setProducts(DEFAULT_PRODUCTS);
+      } else if (isMounted) {
+        // Supabase available but no data - keep empty array
+        setProducts([]);
+      }
     };
 
     const loadOrdersFromLocalStorage = () => {
