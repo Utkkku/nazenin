@@ -655,34 +655,87 @@ export default function App() {
               iban: iban,
               accountHolderName: accountHolder
             });
-            console.log('Payment info loaded:', { iban, accountHolder });
+            console.log('Payment info loaded from Supabase:', { iban, accountHolder });
           } else {
-            // Use defaults if no data
+            // Try localStorage if no Supabase data
+            try {
+              const storedSettings = window.localStorage.getItem('nazeninya_settings');
+              if (storedSettings) {
+                const parsed = JSON.parse(storedSettings);
+                setPaymentInfo({
+                  iban: parsed.iban || defaultIban,
+                  accountHolderName: parsed.accountHolderName || defaultAccountHolder
+                });
+                console.log('Payment info loaded from localStorage:', parsed);
+              } else {
+                setPaymentInfo({
+                  iban: defaultIban,
+                  accountHolderName: defaultAccountHolder
+                });
+                console.log('Using default payment info');
+              }
+            } catch (localErr) {
+              setPaymentInfo({
+                iban: defaultIban,
+                accountHolderName: defaultAccountHolder
+              });
+              console.log('Using default payment info (localStorage error)');
+            }
+          }
+        } catch (err) {
+          console.error('Failed to reload payment info:', err);
+          // Try localStorage on error
+          try {
+            const storedSettings = window.localStorage.getItem('nazeninya_settings');
+            if (storedSettings) {
+              const parsed = JSON.parse(storedSettings);
+              setPaymentInfo({
+                iban: parsed.iban || defaultIban,
+                accountHolderName: parsed.accountHolderName || defaultAccountHolder
+              });
+              console.log('Payment info loaded from localStorage (after error):', parsed);
+            } else {
+              setPaymentInfo({
+                iban: defaultIban,
+                accountHolderName: defaultAccountHolder
+              });
+            }
+          } catch (localErr) {
             setPaymentInfo({
               iban: defaultIban,
               accountHolderName: defaultAccountHolder
             });
-            console.log('Using default payment info');
+          }
+        }
+      } else {
+        // No Supabase, try localStorage
+        try {
+          const storedSettings = window.localStorage.getItem('nazeninya_settings');
+          if (storedSettings) {
+            const parsed = JSON.parse(storedSettings);
+            setPaymentInfo({
+              iban: parsed.iban || defaultIban,
+              accountHolderName: parsed.accountHolderName || defaultAccountHolder
+            });
+            console.log('Payment info loaded from localStorage (no Supabase):', parsed);
+          } else {
+            setPaymentInfo({
+              iban: defaultIban,
+              accountHolderName: defaultAccountHolder
+            });
+            console.log('No Supabase connection, using defaults');
           }
         } catch (err) {
-          console.error('Failed to reload payment info:', err);
-          // Use defaults on error
           setPaymentInfo({
             iban: defaultIban,
             accountHolderName: defaultAccountHolder
           });
+          console.log('No Supabase connection, using defaults (localStorage error)');
         }
-      } else {
-        // No Supabase, use defaults
-        setPaymentInfo({
-          iban: defaultIban,
-          accountHolderName: defaultAccountHolder
-        });
-        console.log('No Supabase connection, using defaults');
       }
     };
     
-    reloadPaymentInfo();
+    await reloadPaymentInfo();
     
     setTimeout(() => {
       setOrderStatus('success');
@@ -1546,13 +1599,13 @@ export default function App() {
                     <div>
                       <span className="text-[10px] uppercase tracking-[0.2em] text-stone-400 block mb-1">Hesap Sahibi</span>
                       <p className="text-sm font-medium text-stone-800">
-                        {(paymentInfo && paymentInfo.accountHolderName) || (settings && settings.accountHolderName) || 'Nazeninyaeverflora'}
+                        {paymentInfo?.accountHolderName || settings?.accountHolderName || 'Nazeninyaeverflora'}
                       </p>
                     </div>
                     <div>
                       <span className="text-[10px] uppercase tracking-[0.2em] text-stone-400 block mb-1">IBAN</span>
                       <p className="text-sm font-mono text-stone-800 break-all">
-                        {(paymentInfo && paymentInfo.iban) || (settings && settings.iban) || 'TR00 0000 0000 0000 0000 0000 00'}
+                        {paymentInfo?.iban || settings?.iban || 'TR00 0000 0000 0000 0000 0000 00'}
                       </p>
                     </div>
                   </div>
