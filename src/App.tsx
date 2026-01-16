@@ -770,8 +770,44 @@ export default function App() {
     });
   };
 
-  const handleDeleteProduct = (id: number) => {
+  const handleDeleteProduct = async (id: number) => {
+    // Update state immediately for UI responsiveness
     setProducts(prev => prev.filter(p => p.id !== id));
+    
+    // Delete from Supabase if available
+    if (supabase) {
+      try {
+        const { error } = await supabase
+          .from('products')
+          .delete()
+          .eq('id', id);
+        
+        if (error) {
+          console.error('Failed to delete product from Supabase:', error);
+          // Revert state change on error
+          const { data } = await supabase
+            .from('products')
+            .select('*')
+            .eq('id', id)
+            .single();
+          
+          if (data) {
+            setProducts(prev => [...prev, {
+              id: data.id,
+              name: data.name,
+              category: data.category,
+              price: Number(data.price),
+              image: data.image,
+              description: data.description,
+              color: data.color as ColorType,
+            }]);
+          }
+        }
+      } catch (err) {
+        console.error('Error deleting product:', err);
+      }
+    }
+    // If no Supabase, localStorage will be updated via useEffect
   };
 
   const handleConfirmOrder = (id: number) => {
